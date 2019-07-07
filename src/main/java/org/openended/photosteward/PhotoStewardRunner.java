@@ -23,6 +23,6 @@ public class PhotoStewardRunner implements ApplicationRunner {
         log.info("Running with cfg {}", configuration);
         log.info("Running with args {}", args);
 
-        walkFileTree(configuration.getAbsoluteSourcePath(), new PhotoVisitor());
+        walkFileTree(configuration.getAbsoluteSourcePath(), new PhotoVisitor(configuration.getAbsoluteDestinationPath(), configuration.isMove()));
     }
 }

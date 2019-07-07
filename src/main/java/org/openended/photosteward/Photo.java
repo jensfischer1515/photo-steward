@@ -1,80 +1,83 @@
 package org.openended.photosteward;
 
-import com.drew.metadata.Directory;
-import com.drew.metadata.Metadata;
 import com.drew.metadata.exif.ExifDirectoryBase;
 import com.drew.metadata.file.FileSystemDirectory;
 import com.drew.metadata.file.FileTypeDirectory;
 import io.vavr.control.Try;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.style.ToStringCreator;
+import org.springframework.util.MimeType;
 
 import java.nio.file.Path;
 import java.util.Date;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.drew.imaging.ImageMetadataReader.readMetadata;
-import static java.util.stream.StreamSupport.stream;
+import static lombok.AccessLevel.PRIVATE;
 
 @Slf4j
-@ToString(exclude = "metadata")
 @RequiredArgsConstructor
 public class Photo {
 
     @Getter
     private final Path path;
 
+    @Getter(lazy = true, value = PRIVATE)
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    private Optional<Metadata> metadata;
+    private final Optional<MetadataExtractor> metadata = Try.of(() -> readMetadata(path.toFile())).map(MetadataExtractor::new).toJavaOptional();
+
+    public Path getFileName() {
+        return getPath().getFileName();
+    }
 
     public Optional<Date> getDate() {
-        return getMetadata().flatMap(this::findDate);
-    }
-
-    public Optional<String> getMimeType() {
-        return getMetadata().flatMap(this::findMimeType);
-    }
-
-    private Optional<Metadata> getMetadata() {
-        //noinspection OptionalAssignedToNull
-        if (metadata == null) {
-            metadata = Try.of(() -> readMetadata(path.toFile()))
-                    .onFailure(e -> log.warn("Could not read metadata for {}", this))
-                    .toJavaOptional();
-        }
-        return metadata;
-    }
-
-    private Optional<String> findMimeType(Metadata metadata) {
-        return metadata.getDirectoriesOfType(FileTypeDirectory.class).stream()
-                .map(directory -> directory.getString(FileTypeDirectory.TAG_DETECTED_FILE_MIME_TYPE))
-                .findFirst();
-    }
-
-    private Optional<Date> findDate(Metadata metadata) {
-        return stream(metadata.getDirectories().spliterator(), false)
-                .filter(((Predicate<Directory>) Directory::hasErrors).negate())
-                .map(this::findDate)
+        return Stream.<Supplier<Optional<Date>>>of(
+                this::getExifOriginalDate,
+                this::getExifDigitizedlDate,
+                this::getExifDate,
+                this::getModifiedDate)
+                .map(Supplier::get)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .sorted()
                 .findFirst();
     }
 
-    private Optional<Date> findDate(Directory directory) {
-        return Stream.<Supplier<Date>>of(
-                () -> directory.getDate(ExifDirectoryBase.TAG_DATETIME_ORIGINAL),
-                () -> directory.getDate(ExifDirectoryBase.TAG_DATETIME_DIGITIZED),
-                () -> directory.getDate(ExifDirectoryBase.TAG_DATETIME),
-                () -> directory.getDate(FileSystemDirectory.TAG_FILE_MODIFIED_DATE))
-                .map(Supplier::get)
-                .filter(Objects::nonNull)
-                .findFirst();
+    public boolean isImage() {
+        return getMimeType().filter(mimeType -> mimeType.isCompatibleWith(MimeType.valueOf("image/*"))).isPresent();
+    }
+
+    public Optional<MimeType> getMimeType() {
+        return getMetadata().flatMap(m -> m.getOptionalString(FileTypeDirectory.class, FileTypeDirectory.TAG_DETECTED_FILE_MIME_TYPE)).map(MimeType::valueOf);
+    }
+
+    public Optional<Date> getExifOriginalDate() {
+        return getMetadata().flatMap(m -> m.getOptionalDate(ExifDirectoryBase.class, ExifDirectoryBase.TAG_DATETIME_ORIGINAL));
+    }
+
+    public Optional<Date> getExifDigitizedlDate() {
+        return getMetadata().flatMap(m -> m.getOptionalDate(ExifDirectoryBase.class, ExifDirectoryBase.TAG_DATETIME_DIGITIZED));
+    }
+
+    public Optional<Date> getExifDate() {
+        return getMetadata().flatMap(m -> m.getOptionalDate(ExifDirectoryBase.class, ExifDirectoryBase.TAG_DATETIME));
+    }
+
+    public Optional<Date> getModifiedDate() {
+        return getMetadata().flatMap(m -> m.getOptionalDate(FileSystemDirectory.class, FileSystemDirectory.TAG_FILE_MODIFIED_DATE));
+    }
+
+    @Override
+    public String toString() {
+        ToStringCreator creator = new ToStringCreator(this).append("path", this.path);
+        getMimeType().ifPresent(s -> creator.append("mimeType", s));
+        getExifOriginalDate().ifPresent(s -> creator.append("exifOriginalDate", s));
+        getExifDigitizedlDate().ifPresent(s -> creator.append("exifDigitizedDate", s));
+        getExifDate().ifPresent(s -> creator.append("exifDate", s));
+        getModifiedDate().ifPresent(s -> creator.append("modifiedDate", s));
+        return creator.toString();
     }
 }

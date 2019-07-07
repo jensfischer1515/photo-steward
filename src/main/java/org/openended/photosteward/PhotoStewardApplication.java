@@ -6,10 +6,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 @SpringBootApplication
 @EnableConfigurationProperties(PhotoStewardConfiguration.class)
-public class PhotostewardApplication {
+public class PhotoStewardApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(PhotostewardApplication.class, args);
+        SpringApplication.run(PhotoStewardApplication.class, args);
     }
 
 }
