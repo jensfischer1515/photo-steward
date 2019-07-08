@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("test")
 @Import(MemoryFileSystemConfiguration.class)
-public class PhotoStewardApplicationTests implements WithTestData {
+public class PhotoStewardTest implements WithTestData {
 
     @Getter
     @Autowired

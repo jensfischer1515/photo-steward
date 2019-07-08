@@ -9,7 +9,7 @@ import java.nio.file.FileSystems;
 @Configuration
 public class FileSystemConfiguration {
 
-    @Bean
+    @Bean(destroyMethod = "")
     public FileSystem fileSystem() {
         return FileSystems.getDefault();
     }
