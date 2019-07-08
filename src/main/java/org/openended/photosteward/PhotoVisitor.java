@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -20,8 +21,15 @@ public class PhotoVisitor implements FileVisitor<Path> {
 
     private final boolean move;
 
+
+    private AtomicInteger processed = new AtomicInteger(0);
+
     @Getter
     private final Map<Path, IOException> errors = new LinkedHashMap<>();
+
+    public int getProcessed() {
+        return processed.intValue();
+    }
 
     @Override
     public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
@@ -36,8 +44,12 @@ public class PhotoVisitor implements FileVisitor<Path> {
         log.info("photo {}", photo);
 
         if (move && photo.isImage()) {
-            new PhotoMover(destination).movePhoto(photo)
-                    .ifPresent(path -> log.info("Moved {} to {}", photo.getPath(), path));
+            new PhotoMover(destination)
+                    .movePhoto(photo)
+                    .ifPresent(path -> {
+                        log.info("Moved {} to {}", photo.getPath(), path);
+                        processed.incrementAndGet();
+                    });
         }
 
         return FileVisitResult.CONTINUE;

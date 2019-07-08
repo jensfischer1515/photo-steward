@@ -34,3 +34,4 @@ out/
 
 src/test/resources/source
 src/test/resources/destination
+src/test/resources/*.jpg

@@ -1,5 +1,6 @@
 package org.openended.photosteward;
 
+import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.exif.ExifDirectoryBase;
 import com.drew.metadata.file.FileSystemDirectory;
 import com.drew.metadata.file.FileTypeDirectory;
@@ -16,7 +17,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static com.drew.imaging.ImageMetadataReader.readMetadata;
+import static java.nio.file.Files.newInputStream;
 import static lombok.AccessLevel.PRIVATE;
 
 @Slf4j
@@ -28,7 +29,12 @@ public class Photo {
 
     @Getter(lazy = true, value = PRIVATE)
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    private final Optional<MetadataExtractor> metadata = Try.of(() -> readMetadata(path.toFile())).map(MetadataExtractor::new).toJavaOptional();
+    private final Optional<MetadataExtractor> metadata = Try
+            .withResources(() -> newInputStream(path))
+            .of(ImageMetadataReader::readMetadata)
+            .onFailure(e -> log.warn("Could not read metadata for {}", path, e))
+            .map(MetadataExtractor::new)
+            .toJavaOptional();
 
     public Path getFileName() {
         return getPath().getFileName();
