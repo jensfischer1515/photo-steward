@@ -6,16 +6,17 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @RequiredArgsConstructor
-public class PhotoVisitor implements FileVisitor<Path> {
+public class PhotoVisitor extends SimpleFileVisitor<Path> {
 
     private final Path destination;
 
@@ -32,24 +33,19 @@ public class PhotoVisitor implements FileVisitor<Path> {
     }
 
     @Override
-    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-        log.debug("preVisitDirectory {}", dir);
-        return FileVisitResult.CONTINUE;
-    }
-
-    @Override
     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
         log.debug("visitFile {}", file);
         Photo photo = new Photo(file);
         log.info("photo {}", photo);
 
         if (move && photo.isImage()) {
-            new PhotoMover(destination)
-                    .movePhoto(photo)
-                    .ifPresent(path -> {
-                        log.info("Moved {} to {}", photo.getPath(), path);
-                        processed.incrementAndGet();
-                    });
+            Optional<Path> moved = new PhotoMover(destination).movePhoto(photo);
+            if (moved.isPresent()) {
+                log.info("Moved {} to {}", photo.getPath(), moved.get());
+                processed.incrementAndGet();
+            } else {
+                errors.put(file, null);
+            }
         }
 
         return FileVisitResult.CONTINUE;
@@ -59,12 +55,6 @@ public class PhotoVisitor implements FileVisitor<Path> {
     public FileVisitResult visitFileFailed(Path file, IOException exc) {
         log.debug("visitFileFailed {}", file);
         errors.put(file, exc);
-        return FileVisitResult.CONTINUE;
-    }
-
-    @Override
-    public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
-        log.debug("postVisitDirectory {}", dir);
         return FileVisitResult.CONTINUE;
     }
 }

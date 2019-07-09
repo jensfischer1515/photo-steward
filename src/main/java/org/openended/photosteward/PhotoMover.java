@@ -25,20 +25,21 @@ public class PhotoMover {
                 .map(Date::toInstant)
                 .map(instant -> instant.atOffset(UTC))
                 .map(this::destinationDir)
-                .map(destinationDir -> {
-                    Path destinationFile = destinationDir.resolve(photo.getFileName());
-                    return Try.of(() -> createDirectories(destinationDir))
-                            .onFailure(e -> log.error("Could not create dir {}", destinationDir, e))
-                            .andThenTry(() -> move(photo.getPath(), destinationFile, ATOMIC_MOVE))
-                            .onFailure(e -> log.error("Could not move {} to {}", photo.getPath(), destinationDir, e))
-                            .get();
-
-                });
+                .map(dir -> dir.resolve(photo.getFileName()))
+                .flatMap(destination -> moveFile(photo.getPath(), destination));
     }
 
     private Path destinationDir(OffsetDateTime dateTime) {
         String year = String.format("%04d", dateTime.getYear());
         String month = String.format("%02d", dateTime.getMonthValue());
         return destination.resolve(year).resolve(month);
+    }
+
+    private Optional<Path> moveFile(Path source, Path destination) {
+        return Try.of(() -> createDirectories(destination.getParent()))
+                .onFailure(e -> log.error("Could not create dir {}", destination.getParent(), e))
+                .andThenTry(() -> move(source, destination, ATOMIC_MOVE))
+                .onFailure(e -> log.error("Could not move {} to {}", source, destination.getParent(), e))
+                .toJavaOptional();
     }
 }
